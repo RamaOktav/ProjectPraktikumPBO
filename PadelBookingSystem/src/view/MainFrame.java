@@ -6,7 +6,7 @@ import java.awt.*;
 
 public class MainFrame extends JFrame {
 
-    public MainFrame() {
+    public MainFrame(String username) {
         setTitle("Sistem Pemesanan Lapangan Padel");
         setSize(900, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -23,6 +23,6 @@ public class MainFrame extends JFrame {
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(MainFrame::new);
+        new LoginPage();
     }
 }
