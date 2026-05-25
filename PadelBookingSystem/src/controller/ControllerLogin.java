@@ -3,56 +3,39 @@ package controller;
 import model.LoginModel;
 import view.LoginPage;
 import view.MainFrame;
-
 import javax.swing.*;
 
+/**
+ * Controller for Login.
+ * Mediates between LoginPage (View) and LoginModel (Model).
+ */
 public class ControllerLogin {
 
-    LoginPage view;
-    LoginModel model;
+    private final LoginPage view;
+    private final LoginModel model;
 
     public ControllerLogin(LoginPage view) {
         this.view = view;
-        model = new LoginModel();
+        this.model = new LoginModel();
     }
 
     public void login() {
-
         String username = view.getUsername();
         String password = view.getPassword();
 
-        // VALIDASI FIELD KOSONG
         if (username.isEmpty() || password.isEmpty()) {
-
-            JOptionPane.showMessageDialog(
-                    null,
-                    "Username dan Password tidak boleh kosong!"
-            );
-
+            JOptionPane.showMessageDialog(null,
+                "Username dan Password tidak boleh kosong!");
             return;
         }
 
-        // CEK LOGIN KE DATABASE
-        boolean cekLogin = model.cekLogin(username, password);
-
-        if (cekLogin) {
-
-            JOptionPane.showMessageDialog(
-                    null,
-                    "Login Berhasil!"
-            );
-
-            // PINDAH KE MENU
+        if (model.cekLogin(username, password)) {
+            JOptionPane.showMessageDialog(null, "Login Berhasil!");
             view.dispose();
-
             new MainFrame(username);
-
         } else {
-
-            JOptionPane.showMessageDialog(
-                    null,
-                    "Username atau Password salah!"
-            );
+            JOptionPane.showMessageDialog(null,
+                "Username atau Password salah!");
         }
     }
 }

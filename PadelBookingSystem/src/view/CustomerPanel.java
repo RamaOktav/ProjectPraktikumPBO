@@ -1,37 +1,45 @@
-// src/view/CustomerPanel.java
 package view;
 
-import dao.CustomerDAO;
+import controller.CustomerController;
 import model.Customer;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.List;
 
+/**
+ * View for Customer management.
+ * Delegates all business logic to CustomerController.
+ */
 public class CustomerPanel extends JPanel {
-    private CustomerDAO dao = new CustomerDAO();
-    private DefaultTableModel tableModel;
-    private JTable table;
-    private JTextField txtName, txtPhone, txtEmail;
+
+    // ─── Controller (MVC: View hanya tahu Controller, bukan DAO) ───
+    private final CustomerController controller = new CustomerController();
+
+    // ─── UI Components ─────────────────────────────────────────────
+    private final DefaultTableModel tableModel;
+    private final JTable table;
+    private final JTextField txtName, txtPhone, txtEmail;
     private int selectedId = -1;
 
     public CustomerPanel() {
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Form input
+        // ── Form ──
         JPanel form = new JPanel(new GridBagLayout());
         form.setBorder(BorderFactory.createTitledBorder("Data Pelanggan"));
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(4, 4, 4, 4);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.fill   = GridBagConstraints.HORIZONTAL;
 
         txtName  = new JTextField(20);
         txtPhone = new JTextField(20);
         txtEmail = new JTextField(20);
 
-        String[] labels = {"Nama:", "Telepon:", "Email:"};
+        String[]     labels = {"Nama:", "Telepon:", "Email:"};
         JTextField[] fields = {txtName, txtPhone, txtEmail};
+
         for (int i = 0; i < labels.length; i++) {
             gbc.gridx = 0; gbc.gridy = i; gbc.weightx = 0;
             form.add(new JLabel(labels[i]), gbc);
@@ -39,24 +47,24 @@ public class CustomerPanel extends JPanel {
             form.add(fields[i], gbc);
         }
 
-        // Tombol CRUD
-        JButton btnAdd    = new JButton("Tambah");
-        JButton btnUpdate = new JButton("Update");
-        JButton btnDelete = new JButton("Hapus");
-        JButton btnClear  = new JButton("Bersihkan");
+        // ── Buttons ──
+        JButton btnAdd     = new JButton("Tambah");
+        JButton btnUpdate  = new JButton("Update");
+        JButton btnDelete  = new JButton("Hapus");
+        JButton btnClear   = new JButton("Bersihkan");
+        JButton btnRefresh = new JButton("⟳ Refresh");
 
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         btnPanel.add(btnAdd); btnPanel.add(btnUpdate);
-        btnPanel.add(btnDelete); btnPanel.add(btnClear);
+        btnPanel.add(btnDelete); btnPanel.add(btnClear); btnPanel.add(btnRefresh);
 
         gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
         form.add(btnPanel, gbc);
 
-        // Tabel
+        // ── Table ──
         tableModel = new DefaultTableModel(
             new String[]{"ID", "Nama", "Telepon", "Email"}, 0) {
-            @Override
-            public boolean isCellEditable(int r, int c) { return false; }
+            @Override public boolean isCellEditable(int r, int c) { return false; }
         };
         table = new JTable(tableModel);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -66,33 +74,33 @@ public class CustomerPanel extends JPanel {
 
         loadData();
 
-        // Event
+        // ── Events ──
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && table.getSelectedRow() >= 0) {
                 int row = table.getSelectedRow();
                 selectedId = (int) tableModel.getValueAt(row, 0);
-                txtName.setText((String) tableModel.getValueAt(row, 1));
+                txtName .setText((String) tableModel.getValueAt(row, 1));
                 txtPhone.setText((String) tableModel.getValueAt(row, 2));
                 txtEmail.setText((String) tableModel.getValueAt(row, 3));
             }
         });
 
         btnAdd.addActionListener(e -> {
-            if (txtName.getText().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Nama tidak boleh kosong!");
-                return;
-            }
-            Customer c = new Customer(0, txtName.getText(), txtPhone.getText(), txtEmail.getText());
-            if (dao.insert(c)) {
+            boolean ok = controller.addCustomer(
+                txtName.getText(), txtPhone.getText(), txtEmail.getText());
+            if (ok) {
                 JOptionPane.showMessageDialog(this, "Pelanggan berhasil ditambahkan!");
                 clearForm(); loadData();
+            } else {
+                JOptionPane.showMessageDialog(this, "Nama tidak boleh kosong!");
             }
         });
 
         btnUpdate.addActionListener(e -> {
             if (selectedId < 0) { JOptionPane.showMessageDialog(this, "Pilih data dulu!"); return; }
-            Customer c = new Customer(selectedId, txtName.getText(), txtPhone.getText(), txtEmail.getText());
-            if (dao.update(c)) {
+            boolean ok = controller.updateCustomer(
+                selectedId, txtName.getText(), txtPhone.getText(), txtEmail.getText());
+            if (ok) {
                 JOptionPane.showMessageDialog(this, "Data berhasil diupdate!");
                 clearForm(); loadData();
             }
@@ -100,9 +108,10 @@ public class CustomerPanel extends JPanel {
 
         btnDelete.addActionListener(e -> {
             if (selectedId < 0) { JOptionPane.showMessageDialog(this, "Pilih data dulu!"); return; }
-            int confirm = JOptionPane.showConfirmDialog(this, "Hapus data ini?", "Konfirmasi", JOptionPane.YES_NO_OPTION);
+            int confirm = JOptionPane.showConfirmDialog(this,
+                "Hapus data ini?", "Konfirmasi", JOptionPane.YES_NO_OPTION);
             if (confirm == JOptionPane.YES_OPTION) {
-                if (dao.delete(selectedId)) {
+                if (controller.deleteCustomer(selectedId)) {
                     JOptionPane.showMessageDialog(this, "Data berhasil dihapus!");
                     clearForm(); loadData();
                 }
@@ -110,17 +119,28 @@ public class CustomerPanel extends JPanel {
         });
 
         btnClear.addActionListener(e -> clearForm());
+
+        btnRefresh.addActionListener(e -> {
+            clearForm();
+            loadData();
+            JOptionPane.showMessageDialog(this, "Data berhasil diperbarui.",
+                "Refresh", JOptionPane.INFORMATION_MESSAGE);
+        });
     }
 
+    // ── Helpers ──────────────────────────────────────────────────────
     private void loadData() {
         tableModel.setRowCount(0);
-        for (Customer c : dao.getAll()) {
-            tableModel.addRow(new Object[]{c.getId(), c.getName(), c.getPhone(), c.getEmail()});
+        for (Customer c : controller.getAllCustomers()) {
+            tableModel.addRow(new Object[]{
+                c.getId(), c.getName(), c.getPhone(), c.getEmail()
+            });
         }
     }
 
     private void clearForm() {
         txtName.setText(""); txtPhone.setText(""); txtEmail.setText("");
-        selectedId = -1; table.clearSelection();
+        selectedId = -1;
+        table.clearSelection();
     }
 }

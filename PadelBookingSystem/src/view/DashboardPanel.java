@@ -1,33 +1,61 @@
-// src/view/DashboardPanel.java
 package view;
 
-import dao.BookingDAO;
-import dao.CustomerDAO;
-import dao.CourtDAO;
+import controller.DashboardController;
 import javax.swing.*;
 import java.awt.*;
 
+/**
+ * View for Dashboard.
+ * Refresh button rebuilds the stat cards from the controller.
+ */
 public class DashboardPanel extends JPanel {
+
+    private final DashboardController controller = new DashboardController();
+    private JPanel cardsPanel;
+
     public DashboardPanel() {
         setLayout(new BorderLayout());
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        JLabel title = new JLabel("Selamat Datang di Sistem Pemesanan Padel", SwingConstants.CENTER);
+        // ── Title ──
+        JLabel title = new JLabel(
+            "Selamat Datang di Sistem Pemesanan Padel", SwingConstants.CENTER);
         title.setFont(new Font("Arial", Font.BOLD, 18));
-        add(title, BorderLayout.NORTH);
 
-        JPanel cards = new JPanel(new GridLayout(1, 3, 16, 0));
-        cards.setBorder(BorderFactory.createEmptyBorder(20, 0, 0, 0));
+        // ── Refresh button ──
+        JButton btnRefresh = new JButton("⟳  Refresh");
+        btnRefresh.setFont(new Font("Arial", Font.PLAIN, 12));
+        btnRefresh.setBackground(new Color(100, 100, 100));
+        btnRefresh.setForeground(Color.WHITE);
+        btnRefresh.addActionListener(e -> refreshCards());
 
-        int totalCustomer = new CustomerDAO().getAll().size();
-        int totalCourt = new CourtDAO().getAll().size();
-        int totalBooking = new BookingDAO().getAll().size();
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(title, BorderLayout.CENTER);
+        topPanel.add(btnRefresh, BorderLayout.EAST);
 
-        cards.add(createCard("Total Pelanggan", String.valueOf(totalCustomer), new Color(52, 152, 219)));
-        cards.add(createCard("Total Lapangan", String.valueOf(totalCourt), new Color(46, 204, 113)));
-        cards.add(createCard("Total Pemesanan", String.valueOf(totalBooking), new Color(155, 89, 182)));
+        // ── Cards ──
+        cardsPanel = new JPanel(new GridLayout(1, 3, 16, 0));
+        cardsPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 0, 0));
 
-        add(cards, BorderLayout.CENTER);
+        add(topPanel,    BorderLayout.NORTH);
+        add(cardsPanel,  BorderLayout.CENTER);
+
+        refreshCards();
+    }
+
+    private void refreshCards() {
+        cardsPanel.removeAll();
+        cardsPanel.add(createCard("Total Pelanggan",
+            String.valueOf(controller.getTotalCustomers()),
+            new Color(52, 152, 219)));
+        cardsPanel.add(createCard("Total Lapangan",
+            String.valueOf(controller.getTotalCourts()),
+            new Color(46, 204, 113)));
+        cardsPanel.add(createCard("Total Pemesanan",
+            String.valueOf(controller.getTotalBookings()),
+            new Color(155, 89, 182)));
+        cardsPanel.revalidate();
+        cardsPanel.repaint();
     }
 
     private JPanel createCard(String label, String value, Color color) {
