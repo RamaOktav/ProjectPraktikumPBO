@@ -17,7 +17,10 @@ public class CustomerDAO implements ICRUDOperations<Customer> {
             ps.setString(1, c.getName());
             ps.setString(2, c.getPhone());
             ps.setString(3, c.getEmail());
-            return ps.executeUpdate() > 0;
+            ps.executeUpdate();
+            return true;
+        }catch(SQLIntegrityConstraintViolationException e){
+           return false; 
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
@@ -53,6 +56,8 @@ public class CustomerDAO implements ICRUDOperations<Customer> {
             ps.setString(3, c.getEmail());
             ps.setInt(4, c.getId());
             return ps.executeUpdate() > 0;
+        }catch(SQLIntegrityConstraintViolationException e){
+            return false;
         } catch (SQLException e) {
             e.printStackTrace();
             return false;

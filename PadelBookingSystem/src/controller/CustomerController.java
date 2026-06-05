@@ -4,10 +4,7 @@ import dao.CustomerDAO;
 import model.Customer;
 import java.util.List;
 
-/**
- * Controller for Customer management.
- * Mediates between CustomerPanel (View) and CustomerDAO (Model).
- */
+
 public class CustomerController {
 
     private final CustomerDAO dao = new CustomerDAO();
@@ -21,15 +18,17 @@ public class CustomerController {
      * Validates and adds a new customer.
      * @return true if successful, false if validation fails or DB error
      */
-    public boolean addCustomer(String name, String phone, String email) {
-        if (name == null || name.trim().isEmpty()) return false;
-        return dao.insert(new Customer(0, name.trim(), phone.trim(), email.trim()));
+    public int addCustomer(String name, String phone, String email) {
+        if (name == null || name.trim().isEmpty()) return -1;
+        boolean ok = dao.insert(new Customer(0, name.trim(), phone.trim(), email.trim()));
+        return ok? 1:0;
     }
 
     /** Updates an existing customer by ID. */
-    public boolean updateCustomer(int id, String name, String phone, String email) {
-        if (name == null || name.trim().isEmpty()) return false;
-        return dao.update(new Customer(id, name.trim(), phone.trim(), email.trim()));
+    public int updateCustomer(int id, String name, String phone, String email) {
+        if (name == null || name.trim().isEmpty()) return -1;
+        boolean ok = dao.update(new Customer(0, name.trim(), phone.trim(), email.trim()));
+        return ok? 1:0;
     }
 
     /** Deletes a customer by ID. */

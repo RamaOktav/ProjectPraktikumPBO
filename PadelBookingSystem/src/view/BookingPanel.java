@@ -15,34 +15,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * View for Booking management.
- * All validation and business logic delegated to BookingController.
- *
- * Fixes applied:
- *  - Customer & Court stored in parallel lists (not re-fetched by index on click)
- *  - Total price auto-calculated from court price × hours
- *  - Date defaults to today
- *  - Time validation and conflict check handled in controller
- *  - Only "Available" courts shown in booking form
- */
 public class BookingPanel extends JPanel {
 
-    // ─── Controller ────────────────────────────────────────────────
     private final BookingController controller = new BookingController();
 
-    // ─── Parallel lists — source of truth for combo selections ─────
+    // Parallel lists — sumber data untuk combo box
     private final List<Customer> customerList = new ArrayList<>();
     private final List<Court>    courtList    = new ArrayList<>();
 
-    // ─── UI Components ─────────────────────────────────────────────
+    // ── UI Components ─────────────────────────────────────────────
     private final DefaultTableModel tableModel;
     private final JTable            table;
     private final JComboBox<String> cbCustomer, cbCourt, cbStatus;
     private final JTextField        txtDate, txtStart, txtEnd;
-    private final JLabel            lblTotal;       // read-only calculated total
+    private final JLabel            lblTotal;
     private double                  calculatedTotal = 0;
     private int                     selectedId      = -1;
+
+    private final JButton btnBook, btnUpdate, btnDelete, btnClear, btnRefresh;
 
     private static final DateTimeFormatter DATE_FMT =
         DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -70,27 +60,24 @@ public class BookingPanel extends JPanel {
         lblTotal.setFont(new Font("Arial", Font.BOLD, 13));
         lblTotal.setForeground(new Color(0, 128, 0));
 
-        loadComboData();   // populate customerList, courtList, cbCustomer, cbCourt
-
-        // Row layout: label | component
-        addFormRow(form, gbc, 0, "Pelanggan:",    cbCustomer);
-        addFormRow(form, gbc, 1, "Lapangan:",     cbCourt);
-        addFormRow(form, gbc, 2, "Tanggal (YYYY-MM-DD):", txtDate);
-        addFormRow(form, gbc, 3, "Jam Mulai (HH:mm):",   txtStart);
-        addFormRow(form, gbc, 4, "Jam Selesai (HH:mm):",  txtEnd);
-        addFormRow(form, gbc, 5, "Total Harga:",  lblTotal);   // read-only
-        addFormRow(form, gbc, 6, "Status:",       cbStatus);
+        addFormRow(form, gbc, 0, "Pelanggan:",             cbCustomer);
+        addFormRow(form, gbc, 1, "Lapangan:",              cbCourt);
+        addFormRow(form, gbc, 2, "Tanggal (YYYY-MM-DD):",  txtDate);
+        addFormRow(form, gbc, 3, "Jam Mulai (HH:mm):",     txtStart);
+        addFormRow(form, gbc, 4, "Jam Selesai (HH:mm):",   txtEnd);
+        addFormRow(form, gbc, 5, "Total Harga:",            lblTotal);
+        addFormRow(form, gbc, 6, "Status:",                 cbStatus);
 
         // ── Buttons ─────────────────────────────────────────────────
-        JButton btnBook    = new JButton("✔  Pesan");
-        JButton btnUpdate  = new JButton("↺  Update Status");
-        JButton btnDelete  = new JButton("✖  Hapus");
-        JButton btnClear   = new JButton("⊘  Bersihkan");
-        JButton btnRefresh = new JButton("⟳  Refresh");
+        btnBook    = new JButton("✔  Pesan");
+        btnUpdate  = new JButton("↺  Update Status");
+        btnDelete  = new JButton("✖  Hapus");
+        btnClear   = new JButton("⊘  Bersihkan");
+        btnRefresh = new JButton("⟳  Refresh");
 
-        btnBook   .setBackground(new Color(46, 139, 87));  btnBook   .setForeground(Color.WHITE);
-        btnUpdate .setBackground(new Color(30, 100, 200)); btnUpdate .setForeground(Color.WHITE);
-        btnDelete .setBackground(new Color(180, 40, 40));  btnDelete .setForeground(Color.WHITE);
+        btnBook   .setBackground(new Color(46, 139, 87));   btnBook   .setForeground(Color.WHITE);
+        btnUpdate .setBackground(new Color(30, 100, 200));  btnUpdate .setForeground(Color.WHITE);
+        btnDelete .setBackground(new Color(180, 40, 40));   btnDelete .setForeground(Color.WHITE);
         btnRefresh.setBackground(new Color(100, 100, 100)); btnRefresh.setForeground(Color.WHITE);
 
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
@@ -113,10 +100,16 @@ public class BookingPanel extends JPanel {
         add(form, BorderLayout.NORTH);
         add(new JScrollPane(table), BorderLayout.CENTER);
 
+        loadComboData();
         loadData();
+        initEvents();
+    }
 
-        // ── Auto-calculate total when court or time changes ──────────
-        cbCourt.addActionListener(e  -> recalcTotal());
+    // ── Events ───────────────────────────────────────────────────────
+    private void initEvents() {
+
+        // Auto-hitung total saat lapangan atau jam berubah
+        cbCourt.addActionListener(e -> recalcTotal());
         txtStart.addFocusListener(new java.awt.event.FocusAdapter() {
             @Override public void focusLost(java.awt.event.FocusEvent e) { recalcTotal(); }
         });
@@ -124,7 +117,7 @@ public class BookingPanel extends JPanel {
             @Override public void focusLost(java.awt.event.FocusEvent e) { recalcTotal(); }
         });
 
-        // ── Select row → fill form ────────────────────────────────────
+        // Pilih baris tabel → isi form
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && table.getSelectedRow() >= 0) {
                 int row = table.getSelectedRow();
@@ -140,7 +133,7 @@ public class BookingPanel extends JPanel {
             }
         });
 
-        // ── BOOK ─────────────────────────────────────────────────────
+        // ── Pesan ────────────────────────────────────────────────────
         btnBook.addActionListener(e -> {
             int custIdx  = cbCustomer.getSelectedIndex();
             int courtIdx = cbCourt.getSelectedIndex();
@@ -157,84 +150,186 @@ public class BookingPanel extends JPanel {
                 showError("Periksa jam mulai dan jam selesai — total tidak valid!"); return;
             }
 
-            String err = controller.addBooking(
-                customerList.get(custIdx).getId(),
-                courtList.get(courtIdx).getId(),
-                txtDate.getText().trim(),
-                txtStart.getText().trim(),
-                txtEnd.getText().trim(),
-                calculatedTotal);
+            // Ambil semua nilai sebelum masuk background thread
+            int customerId = customerList.get(custIdx).getId();
+            int courtId    = courtList.get(courtIdx).getId();
+            String date    = txtDate.getText().trim();
+            String start   = txtStart.getText().trim();
+            String end     = txtEnd.getText().trim();
+            double total   = calculatedTotal;
 
-            if (err == null) {
-                JOptionPane.showMessageDialog(this,
-                    "Pemesanan berhasil!\nTotal: Rp " + CURRENCY.format(calculatedTotal),
-                    "Sukses", JOptionPane.INFORMATION_MESSAGE);
-                clearForm(); loadData();
-            } else {
-                showError(err);
-            }
+            setFormEnabled(false);
+            new SwingWorker<String, Void>() {
+                @Override
+                protected String doInBackground() {
+                    return controller.addBooking(customerId, courtId, date, start, end, total);
+                }
+                @Override
+                protected void done() {
+                    try {
+                        String err = get();
+                        if (err == null) {
+                            showInfo("Pemesanan berhasil!\nTotal: Rp " + CURRENCY.format(total));
+                            clearForm();
+                            loadData();
+                        } else {
+                            showError(err);
+                        }
+                    } catch (Exception ex) {
+                        showError("Terjadi kesalahan: " + ex.getMessage());
+                    } finally {
+                        setFormEnabled(true);
+                    }
+                }
+            }.execute();
         });
 
-        // ── UPDATE STATUS ─────────────────────────────────────────────
+        // ── Update Status ─────────────────────────────────────────────
         btnUpdate.addActionListener(e -> {
             if (selectedId < 0) { showError("Pilih baris booking terlebih dahulu!"); return; }
-            String err = controller.updateBookingStatus(
-                selectedId, (String) cbStatus.getSelectedItem());
-            if (err == null) {
-                JOptionPane.showMessageDialog(this, "Status berhasil diperbarui!",
-                    "Sukses", JOptionPane.INFORMATION_MESSAGE);
-                clearForm(); loadData();
-            } else {
-                showError(err);
-            }
+
+            int id         = selectedId;
+            String status  = (String) cbStatus.getSelectedItem();
+
+            setFormEnabled(false);
+            new SwingWorker<String, Void>() {
+                @Override
+                protected String doInBackground() {
+                    return controller.updateBookingStatus(id, status);
+                }
+                @Override
+                protected void done() {
+                    try {
+                        String err = get();
+                        if (err == null) {
+                            showInfo("Status berhasil diperbarui!");
+                            clearForm();
+                            loadData();
+                        } else {
+                            showError(err);
+                        }
+                    } catch (Exception ex) {
+                        showError("Terjadi kesalahan: " + ex.getMessage());
+                    } finally {
+                        setFormEnabled(true);
+                    }
+                }
+            }.execute();
         });
 
-        // ── DELETE ────────────────────────────────────────────────────
+        // ── Hapus ─────────────────────────────────────────────────────
         btnDelete.addActionListener(e -> {
             if (selectedId < 0) { showError("Pilih baris booking terlebih dahulu!"); return; }
+
             int confirm = JOptionPane.showConfirmDialog(this,
                 "Hapus booking ini secara permanen?", "Konfirmasi Hapus",
                 JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-            if (confirm == JOptionPane.YES_OPTION) {
-                if (controller.deleteBooking(selectedId)) {
-                    JOptionPane.showMessageDialog(this, "Booking dihapus.");
-                    clearForm(); loadData();
-                } else {
-                    showError("Gagal menghapus booking!");
+            if (confirm != JOptionPane.YES_OPTION) return;
+
+            int id = selectedId;
+            setFormEnabled(false);
+            new SwingWorker<String, Void>() {
+                @Override
+                protected String doInBackground() {
+                    return controller.deleteBooking(id);
                 }
-            }
+                @Override
+                protected void done() {
+                    try {
+                        String err = get();
+                        if (err == null) {
+                            showInfo("Booking berhasil dihapus.");
+                            clearForm();
+                            loadData();
+                        } else {
+                            showError(err);
+                        }
+                    } catch (Exception ex) {
+                        showError("Terjadi kesalahan: " + ex.getMessage());
+                    } finally {
+                        setFormEnabled(true);
+                    }
+                }
+            }.execute();
         });
 
         btnClear.addActionListener(e -> clearForm());
 
-        btnRefresh.addActionListener(e -> {
-            clearForm();
-            loadData();
-            JOptionPane.showMessageDialog(this, "Data berhasil diperbarui.",
-                "Refresh", JOptionPane.INFORMATION_MESSAGE);
-        });
+        btnRefresh.addActionListener(e -> { clearForm(); loadData(); });
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
 
-    /** Populates parallel lists and combo boxes. Only available courts for booking. */
-    private void loadComboData() {
-        customerList.clear();
-        courtList.clear();
-        cbCustomer.removeAllItems();
-        cbCourt.removeAllItems();
+    /** Load data booking dari DB di background thread. */
+    private void loadData() {
+        btnRefresh.setEnabled(false);
+        btnRefresh.setText("Memuat...");
 
-        for (Customer c : controller.getAllCustomers()) {
-            customerList.add(c);
-            cbCustomer.addItem(c.getName() + "  (" + c.getPhone() + ")");
-        }
-        for (Court c : controller.getAvailableCourts()) {
-            courtList.add(c);
-            cbCourt.addItem(c.getCourtName() + "  — Rp " + CURRENCY.format(c.getPricePerHour()) + "/jam");
-        }
+        new SwingWorker<List<Booking>, Void>() {
+            @Override
+            protected List<Booking> doInBackground() {
+                return controller.getAllBookings();
+            }
+            @Override
+            protected void done() {
+                try {
+                    tableModel.setRowCount(0);
+                    for (Booking b : get()) {
+                        tableModel.addRow(new Object[]{
+                            b.getId(), b.getCustomerName(), b.getCourtName(),
+                            b.getBookingDate(), b.getStartTime(), b.getEndTime(),
+                            b.getTotalPrice(), b.getStatus()
+                        });
+                    }
+                } catch (Exception ex) {
+                    showError("Gagal memuat data: " + ex.getMessage());
+                } finally {
+                    btnRefresh.setEnabled(true);
+                    btnRefresh.setText("⟳  Refresh");
+                }
+            }
+        }.execute();
     }
 
-    /** Recalculates total price from selected court's price × duration. */
+    /** Load combo customer & lapangan di background thread. */
+    private void loadComboData() {
+        new SwingWorker<Void, Void>() {
+            private List<Customer> customers;
+            private List<Court>    courts;
+
+            @Override
+            protected Void doInBackground() {
+                customers = controller.getAllCustomers();
+                courts    = controller.getAvailableCourts();
+                return null;
+            }
+            @Override
+            protected void done() {
+                try {
+                    get(); // lempar exception jika ada
+                    customerList.clear();
+                    courtList.clear();
+                    cbCustomer.removeAllItems();
+                    cbCourt.removeAllItems();
+
+                    for (Customer c : customers) {
+                        customerList.add(c);
+                        cbCustomer.addItem(c.getName() + "  (" + c.getPhone() + ")");
+                    }
+                    for (Court c : courts) {
+                        courtList.add(c);
+                        cbCourt.addItem(c.getCourtName() + "  — Rp "
+                            + CURRENCY.format(c.getPricePerHour()) + "/jam");
+                    }
+                    recalcTotal();
+                } catch (Exception ex) {
+                    showError("Gagal memuat data combo: " + ex.getMessage());
+                }
+            }
+        }.execute();
+    }
+
+    /** Hitung ulang total harga dari lapangan terpilih × durasi. */
     private void recalcTotal() {
         int courtIdx = cbCourt.getSelectedIndex();
         if (courtIdx < 0 || courtIdx >= courtList.size()) {
@@ -242,9 +337,11 @@ public class BookingPanel extends JPanel {
             calculatedTotal = 0;
             return;
         }
-        Court court = courtList.get(courtIdx);
         double total = controller.calculateTotal(
-            court, txtStart.getText().trim(), txtEnd.getText().trim());
+            courtList.get(courtIdx),
+            txtStart.getText().trim(),
+            txtEnd.getText().trim());
+
         if (total > 0) {
             calculatedTotal = total;
             lblTotal.setText("Rp " + CURRENCY.format(total));
@@ -256,15 +353,17 @@ public class BookingPanel extends JPanel {
         }
     }
 
-    private void loadData() {
-        tableModel.setRowCount(0);
-        for (Booking b : controller.getAllBookings()) {
-            tableModel.addRow(new Object[]{
-                b.getId(), b.getCustomerName(), b.getCourtName(),
-                b.getBookingDate(), b.getStartTime(), b.getEndTime(),
-                b.getTotalPrice(), b.getStatus()
-            });
-        }
+    private void setFormEnabled(boolean enabled) {
+        cbCustomer.setEnabled(enabled);
+        cbCourt   .setEnabled(enabled);
+        cbStatus  .setEnabled(enabled);
+        txtDate   .setEnabled(enabled);
+        txtStart  .setEnabled(enabled);
+        txtEnd    .setEnabled(enabled);
+        btnBook   .setEnabled(enabled);
+        btnUpdate .setEnabled(enabled);
+        btnDelete .setEnabled(enabled);
+        btnRefresh.setEnabled(enabled);
     }
 
     private void clearForm() {
@@ -277,7 +376,11 @@ public class BookingPanel extends JPanel {
         lblTotal.setForeground(new Color(0, 128, 0));
         calculatedTotal = 0;
         cbStatus.setSelectedIndex(0);
-        loadComboData();   // refresh available courts list
+        loadComboData(); // refresh daftar lapangan available
+    }
+
+    private void showInfo(String msg) {
+        JOptionPane.showMessageDialog(this, msg, "Sukses", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void showError(String msg) {
@@ -285,7 +388,7 @@ public class BookingPanel extends JPanel {
     }
 
     private void addFormRow(JPanel p, GridBagConstraints gbc,
-                             int row, String label, JComponent comp) {
+                            int row, String label, JComponent comp) {
         gbc.gridwidth = 1;
         gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
         p.add(new JLabel(label), gbc);
