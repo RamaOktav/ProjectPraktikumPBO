@@ -101,6 +101,8 @@ public class LoginPage extends JFrame {
         });
 
         setVisible(true);
+        
+        
     }
 
     // ===== GETTER =====
@@ -110,5 +112,18 @@ public class LoginPage extends JFrame {
 
     public String getPassword() {
         return String.valueOf(inputPassword.getPassword());
+    }
+    
+    /** Aktifkan / nonaktifkan form saat proses login berlangsung */
+    public void setFormEnabled(boolean enabled) {
+        inputUsername.setEnabled(enabled);
+        inputPassword.setEnabled(enabled);
+        tombolLogin  .setEnabled(enabled);
+        tombolReset  .setEnabled(enabled);
+}
+
+/** Tampilkan teks status di bawah tombol (kosongkan dengan "") */
+    public void setStatus(String text) {
+        tombolLogin.setText(text.isEmpty() ? "Login" : text);
     }
 }

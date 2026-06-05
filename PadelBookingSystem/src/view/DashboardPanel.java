@@ -4,14 +4,13 @@ import controller.DashboardController;
 import javax.swing.*;
 import java.awt.*;
 
-/**
- * View for Dashboard.
- * Refresh button rebuilds the stat cards from the controller.
- */
 public class DashboardPanel extends JPanel {
 
     private final DashboardController controller = new DashboardController();
-    private JPanel cardsPanel;
+
+    // Label nilai disimpan sebagai field agar bisa diupdate dari SwingWorker
+    private final JLabel valCustomers, valCourts, valBookings;
+    private final JButton btnRefresh;
 
     public DashboardPanel() {
         setLayout(new BorderLayout());
@@ -23,42 +22,82 @@ public class DashboardPanel extends JPanel {
         title.setFont(new Font("Arial", Font.BOLD, 18));
 
         // ── Refresh button ──
-        JButton btnRefresh = new JButton("⟳  Refresh");
+        btnRefresh = new JButton("⟳  Refresh");
         btnRefresh.setFont(new Font("Arial", Font.PLAIN, 12));
         btnRefresh.setBackground(new Color(100, 100, 100));
         btnRefresh.setForeground(Color.WHITE);
-        btnRefresh.addActionListener(e -> refreshCards());
+        btnRefresh.addActionListener(e -> loadStatsAsync());
 
         JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(title, BorderLayout.CENTER);
+        topPanel.add(title,      BorderLayout.CENTER);
         topPanel.add(btnRefresh, BorderLayout.EAST);
 
-        // ── Cards ──
-        cardsPanel = new JPanel(new GridLayout(1, 3, 16, 0));
+        // ── Cards (dibuat sekali, label nilai diupdate saat refresh) ──
+        JPanel cardsPanel = new JPanel(new GridLayout(1, 3, 16, 0));
         cardsPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 0, 0));
 
-        add(topPanel,    BorderLayout.NORTH);
-        add(cardsPanel,  BorderLayout.CENTER);
+        valCustomers = new JLabel("...", SwingConstants.CENTER);
+        valCourts    = new JLabel("...", SwingConstants.CENTER);
+        valBookings  = new JLabel("...", SwingConstants.CENTER);
 
-        refreshCards();
+        cardsPanel.add(buildCard("Total Pelanggan", valCustomers, new Color(52, 152, 219)));
+        cardsPanel.add(buildCard("Total Lapangan",  valCourts,    new Color(46, 204, 113)));
+        cardsPanel.add(buildCard("Total Pemesanan", valBookings,  new Color(155, 89, 182)));
+
+        add(topPanel,   BorderLayout.NORTH);
+        add(cardsPanel, BorderLayout.CENTER);
+
+        // Load pertama kali saat panel dibuka
+        loadStatsAsync();
     }
 
-    private void refreshCards() {
-        cardsPanel.removeAll();
-        cardsPanel.add(createCard("Total Pelanggan",
-            String.valueOf(controller.getTotalCustomers()),
-            new Color(52, 152, 219)));
-        cardsPanel.add(createCard("Total Lapangan",
-            String.valueOf(controller.getTotalCourts()),
-            new Color(46, 204, 113)));
-        cardsPanel.add(createCard("Total Pemesanan",
-            String.valueOf(controller.getTotalBookings()),
-            new Color(155, 89, 182)));
-        cardsPanel.revalidate();
-        cardsPanel.repaint();
+    // ── Helpers ──────────────────────────────────────────────────────
+
+    /**
+     * Menjalankan getAllStats() di SwingWorker (background thread),
+     * lalu update label di EDT setelah selesai.
+     * Controller sudah menjalankan 3 query secara paralel via ExecutorService.
+     */
+    private void loadStatsAsync() {
+        btnRefresh.setEnabled(false);
+        btnRefresh.setText("Memuat...");
+
+        // Set placeholder saat loading
+        valCustomers.setText("...");
+        valCourts   .setText("...");
+        valBookings .setText("...");
+
+        new SwingWorker<int[], Void>() {
+            @Override
+            protected int[] doInBackground() {
+                // getAllStats() menjalankan 3 query paralel di thread pool controller
+                return controller.getAllStats();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    int[] stats = get();
+                    valCustomers.setText(String.valueOf(stats[0]));
+                    valCourts   .setText(String.valueOf(stats[1]));
+                    valBookings .setText(String.valueOf(stats[2]));
+                } catch (Exception ex) {
+                    valCustomers.setText("!");
+                    valCourts   .setText("!");
+                    valBookings .setText("!");
+                    JOptionPane.showMessageDialog(DashboardPanel.this,
+                        "Gagal memuat statistik: " + ex.getMessage(),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                } finally {
+                    btnRefresh.setEnabled(true);
+                    btnRefresh.setText("⟳  Refresh");
+                }
+            }
+        }.execute();
     }
 
-    private JPanel createCard(String label, String value, Color color) {
+    /** Membangun card dengan label nilai yang bisa diupdate. */
+    private JPanel buildCard(String label, JLabel valLabel, Color color) {
         JPanel card = new JPanel(new BorderLayout());
         card.setBackground(color);
         card.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -67,12 +106,15 @@ public class DashboardPanel extends JPanel {
         lbl.setForeground(Color.WHITE);
         lbl.setFont(new Font("Arial", Font.PLAIN, 14));
 
-        JLabel val = new JLabel(value, SwingConstants.CENTER);
-        val.setForeground(Color.WHITE);
-        val.setFont(new Font("Arial", Font.BOLD, 36));
+        valLabel.setForeground(Color.WHITE);
+        valLabel.setFont(new Font("Arial", Font.BOLD, 36));
 
-        card.add(lbl, BorderLayout.NORTH);
-        card.add(val, BorderLayout.CENTER);
+        card.add(lbl,      BorderLayout.NORTH);
+        card.add(valLabel, BorderLayout.CENTER);
         return card;
     }
+    
+    public void shutdown() {
+    controller.shutdown();
+}
 }

@@ -7,20 +7,17 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.List;
 
-/**
- * View for Customer management.
- * Delegates all business logic to CustomerController.
- */
 public class CustomerPanel extends JPanel {
 
-    // ─── Controller (MVC: View hanya tahu Controller, bukan DAO) ───
     private final CustomerController controller = new CustomerController();
 
-    // ─── UI Components ─────────────────────────────────────────────
     private final DefaultTableModel tableModel;
     private final JTable table;
     private final JTextField txtName, txtPhone, txtEmail;
     private int selectedId = -1;
+
+    // Tombol disimpan sebagai field agar bisa di-enable/disable
+    private final JButton btnAdd, btnUpdate, btnDelete, btnClear, btnRefresh;
 
     public CustomerPanel() {
         setLayout(new BorderLayout(10, 10));
@@ -48,11 +45,11 @@ public class CustomerPanel extends JPanel {
         }
 
         // ── Buttons ──
-        JButton btnAdd     = new JButton("Tambah");
-        JButton btnUpdate  = new JButton("Update");
-        JButton btnDelete  = new JButton("Hapus");
-        JButton btnClear   = new JButton("Bersihkan");
-        JButton btnRefresh = new JButton("⟳ Refresh");
+        btnAdd     = new JButton("Tambah");
+        btnUpdate  = new JButton("Update");
+        btnDelete  = new JButton("Hapus");
+        btnClear   = new JButton("Bersihkan");
+        btnRefresh = new JButton("⟳ Refresh");
 
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         btnPanel.add(btnAdd); btnPanel.add(btnUpdate);
@@ -73,8 +70,12 @@ public class CustomerPanel extends JPanel {
         add(new JScrollPane(table), BorderLayout.CENTER);
 
         loadData();
+        initEvents();
+    }
 
-        // ── Events ──
+    // ── Events ───────────────────────────────────────────────────────
+    private void initEvents() {
+
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && table.getSelectedRow() >= 0) {
                 int row = table.getSelectedRow();
@@ -85,62 +86,151 @@ public class CustomerPanel extends JPanel {
             }
         });
 
+        // ── Tambah ──
         btnAdd.addActionListener(e -> {
-            boolean ok = controller.addCustomer(
-                txtName.getText(), txtPhone.getText(), txtEmail.getText());
-            if (ok) {
-                JOptionPane.showMessageDialog(this, "Pelanggan berhasil ditambahkan!");
-                clearForm(); loadData();
-            } else {
-                JOptionPane.showMessageDialog(this, "Nama tidak boleh kosong!");
-            }
+            String name  = txtName.getText().trim();
+            String phone = txtPhone.getText().trim();
+            String email = txtEmail.getText().trim();
+
+            setFormEnabled(false);
+            new SwingWorker<Integer, Void>() {
+                @Override
+                protected Integer doInBackground() {
+                    return controller.addCustomer(name, phone, email);
+                }
+                @Override
+                protected void done() {
+                    try {
+                        switch (get()) {
+                            case  1 -> { showInfo("Pelanggan berhasil ditambahkan!"); clearForm(); loadData(); }
+                            case  0 -> showError("Email sudah digunakan!");
+                            case -1 -> showError("Nama tidak boleh kosong!");
+                        }
+                    } catch (Exception ex) {
+                        showError("Terjadi kesalahan: " + ex.getMessage());
+                    } finally {
+                        setFormEnabled(true);
+                    }
+                }
+            }.execute();
         });
 
+        // ── Update ──
         btnUpdate.addActionListener(e -> {
-            if (selectedId < 0) { JOptionPane.showMessageDialog(this, "Pilih data dulu!"); return; }
-            boolean ok = controller.updateCustomer(
-                selectedId, txtName.getText(), txtPhone.getText(), txtEmail.getText());
-            if (ok) {
-                JOptionPane.showMessageDialog(this, "Data berhasil diupdate!");
-                clearForm(); loadData();
-            }
+            if (selectedId < 0) { showInfo("Pilih data dulu!"); return; }
+            String name  = txtName.getText().trim();
+            String phone = txtPhone.getText().trim();
+            String email = txtEmail.getText().trim();
+            int id = selectedId;
+
+            setFormEnabled(false);
+            new SwingWorker<Integer, Void>() {
+                @Override
+                protected Integer doInBackground() {
+                    return controller.updateCustomer(id, name, phone, email);
+                }
+                @Override
+                protected void done() {
+                    try {
+                        switch (get()) {
+                            case  1 -> { showInfo("Data berhasil diupdate!"); clearForm(); loadData(); }
+                            case  0 -> showError("Email sudah digunakan!");
+                            case -1 -> showError("Nama tidak boleh kosong!");
+                        }
+                    } catch (Exception ex) {
+                        showError("Terjadi kesalahan: " + ex.getMessage());
+                    } finally {
+                        setFormEnabled(true);
+                    }
+                }
+            }.execute();
         });
 
+        // ── Hapus ──
         btnDelete.addActionListener(e -> {
-            if (selectedId < 0) { JOptionPane.showMessageDialog(this, "Pilih data dulu!"); return; }
+            if (selectedId < 0) { showInfo("Pilih data dulu!"); return; }
             int confirm = JOptionPane.showConfirmDialog(this,
                 "Hapus data ini?", "Konfirmasi", JOptionPane.YES_NO_OPTION);
-            if (confirm == JOptionPane.YES_OPTION) {
-                if (controller.deleteCustomer(selectedId)) {
-                    JOptionPane.showMessageDialog(this, "Data berhasil dihapus!");
-                    clearForm(); loadData();
+            if (confirm != JOptionPane.YES_OPTION) return;
+
+            int id = selectedId;
+            setFormEnabled(false);
+            new SwingWorker<Boolean, Void>() {
+                @Override
+                protected Boolean doInBackground() {
+                    return controller.deleteCustomer(id);
                 }
-            }
+                @Override
+                protected void done() {
+                    try {
+                        if (get()) { showInfo("Data berhasil dihapus!"); clearForm(); loadData(); }
+                        else showError("Gagal menghapus data!");
+                    } catch (Exception ex) {
+                        showError("Terjadi kesalahan: " + ex.getMessage());
+                    } finally {
+                        setFormEnabled(true);
+                    }
+                }
+            }.execute();
         });
 
         btnClear.addActionListener(e -> clearForm());
 
-        btnRefresh.addActionListener(e -> {
-            clearForm();
-            loadData();
-            JOptionPane.showMessageDialog(this, "Data berhasil diperbarui.",
-                "Refresh", JOptionPane.INFORMATION_MESSAGE);
-        });
+        btnRefresh.addActionListener(e -> { clearForm(); loadData(); });
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
+
+    /** Load data dari DB di background thread, update tabel di EDT. */
     private void loadData() {
-        tableModel.setRowCount(0);
-        for (Customer c : controller.getAllCustomers()) {
-            tableModel.addRow(new Object[]{
-                c.getId(), c.getName(), c.getPhone(), c.getEmail()
-            });
-        }
+        btnRefresh.setEnabled(false);
+        btnRefresh.setText("Memuat...");
+
+        new SwingWorker<List<Customer>, Void>() {
+            @Override
+            protected List<Customer> doInBackground() {
+                return controller.getAllCustomers();
+            }
+            @Override
+            protected void done() {
+                try {
+                    tableModel.setRowCount(0);
+                    for (Customer c : get()) {
+                        tableModel.addRow(new Object[]{
+                            c.getId(), c.getName(), c.getPhone(), c.getEmail()
+                        });
+                    }
+                } catch (Exception ex) {
+                    showError("Gagal memuat data: " + ex.getMessage());
+                } finally {
+                    btnRefresh.setEnabled(true);
+                    btnRefresh.setText("⟳ Refresh");
+                }
+            }
+        }.execute();
+    }
+
+    private void setFormEnabled(boolean enabled) {
+        txtName .setEnabled(enabled);
+        txtPhone.setEnabled(enabled);
+        txtEmail.setEnabled(enabled);
+        btnAdd    .setEnabled(enabled);
+        btnUpdate .setEnabled(enabled);
+        btnDelete .setEnabled(enabled);
+        btnRefresh.setEnabled(enabled);
     }
 
     private void clearForm() {
         txtName.setText(""); txtPhone.setText(""); txtEmail.setText("");
         selectedId = -1;
         table.clearSelection();
+    }
+
+    private void showInfo(String msg) {
+        JOptionPane.showMessageDialog(this, msg);
+    }
+
+    private void showError(String msg) {
+        JOptionPane.showMessageDialog(this, msg, "Error", JOptionPane.ERROR_MESSAGE);
     }
 }

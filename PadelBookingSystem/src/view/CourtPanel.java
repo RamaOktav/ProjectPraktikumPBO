@@ -5,22 +5,19 @@ import model.Court;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.util.List;
 
-/**
- * View for Court management.
- * Delegates all business logic to CourtController.
- */
 public class CourtPanel extends JPanel {
 
-    // ─── Controller ────────────────────────────────────────────────
     private final CourtController controller = new CourtController();
 
-    // ─── UI Components ─────────────────────────────────────────────
     private final DefaultTableModel tableModel;
     private final JTable table;
     private final JTextField txtName, txtType, txtPrice;
     private final JComboBox<String> cbStatus;
     private int selectedId = -1;
+
+    private final JButton btnAdd, btnUpdate, btnDelete, btnClear, btnRefresh;
 
     public CourtPanel() {
         setLayout(new BorderLayout(10, 10));
@@ -49,11 +46,11 @@ public class CourtPanel extends JPanel {
         }
 
         // ── Buttons ──
-        JButton btnAdd     = new JButton("Tambah");
-        JButton btnUpdate  = new JButton("Update");
-        JButton btnDelete  = new JButton("Hapus");
-        JButton btnClear   = new JButton("Bersihkan");
-        JButton btnRefresh = new JButton("⟳ Refresh");
+        btnAdd     = new JButton("Tambah");
+        btnUpdate  = new JButton("Update");
+        btnDelete  = new JButton("Hapus");
+        btnClear   = new JButton("Bersihkan");
+        btnRefresh = new JButton("⟳ Refresh");
 
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         btnPanel.add(btnAdd); btnPanel.add(btnUpdate);
@@ -74,8 +71,12 @@ public class CourtPanel extends JPanel {
         add(new JScrollPane(table), BorderLayout.CENTER);
 
         loadData();
+        initEvents();
+    }
 
-        // ── Events ──
+    // ── Events ───────────────────────────────────────────────────────
+    private void initEvents() {
+
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && table.getSelectedRow() >= 0) {
                 int row = table.getSelectedRow();
@@ -87,72 +88,153 @@ public class CourtPanel extends JPanel {
             }
         });
 
+        // ── Tambah ──
         btnAdd.addActionListener(e -> {
-            if (txtName.getText().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Nama lapangan tidak boleh kosong!");
-                return;
-            }
+            String name   = txtName.getText().trim();
+            String type   = txtType.getText().trim();
+            String status = (String) cbStatus.getSelectedItem();
+
+            double price;
             try {
-                double price = Double.parseDouble(txtPrice.getText());
-                boolean ok = controller.addCourt(
-                    txtName.getText(), txtType.getText(), price,
-                    (String) cbStatus.getSelectedItem());
-                if (ok) {
-                    JOptionPane.showMessageDialog(this, "Lapangan berhasil ditambahkan!");
-                    clearForm(); loadData();
-                }
+                price = Double.parseDouble(txtPrice.getText().trim());
             } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "Harga harus berupa angka!");
+                showError("Harga harus berupa angka!"); return;
             }
+
+            setFormEnabled(false);
+            new SwingWorker<Integer, Void>() {
+                @Override
+                protected Integer doInBackground() {
+                    return controller.addCourt(name, type, price, status);
+                }
+                @Override
+                protected void done() {
+                    try {
+                        switch (get()) {
+                            case  1 -> { showInfo("Lapangan berhasil ditambahkan!"); clearForm(); loadData(); }
+                            case  0 -> showError("Gagal menyimpan lapangan ke database!");
+                            case -1 -> showError("Nama lapangan tidak boleh kosong!");
+                        }
+                    } catch (Exception ex) {
+                        showError("Terjadi kesalahan: " + ex.getMessage());
+                    } finally {
+                        setFormEnabled(true);
+                    }
+                }
+            }.execute();
         });
 
+        // ── Update ──
         btnUpdate.addActionListener(e -> {
-            if (selectedId < 0) { JOptionPane.showMessageDialog(this, "Pilih data dulu!"); return; }
+            if (selectedId < 0) { showInfo("Pilih data dulu!"); return; }
+            String name   = txtName.getText().trim();
+            String type   = txtType.getText().trim();
+            String status = (String) cbStatus.getSelectedItem();
+            int id = selectedId;
+
+            double price;
             try {
-                double price = Double.parseDouble(txtPrice.getText());
-                boolean ok = controller.updateCourt(
-                    selectedId, txtName.getText(), txtType.getText(), price,
-                    (String) cbStatus.getSelectedItem());
-                if (ok) {
-                    JOptionPane.showMessageDialog(this, "Data berhasil diupdate!");
-                    clearForm(); loadData();
-                }
+                price = Double.parseDouble(txtPrice.getText().trim());
             } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "Harga harus berupa angka!");
+                showError("Harga harus berupa angka!"); return;
             }
+
+            setFormEnabled(false);
+            new SwingWorker<Integer, Void>() {
+                @Override
+                protected Integer doInBackground() {
+                    return controller.updateCourt(id, name, type, price, status);
+                }
+                @Override
+                protected void done() {
+                    try {
+                        switch (get()) {
+                            case  1 -> { showInfo("Data berhasil diupdate!"); clearForm(); loadData(); }
+                            case  0 -> showError("Gagal mengupdate lapangan ke database!");
+                            case -1 -> showError("Nama lapangan tidak boleh kosong!");
+                        }
+                    } catch (Exception ex) {
+                        showError("Terjadi kesalahan: " + ex.getMessage());
+                    } finally {
+                        setFormEnabled(true);
+                    }
+                }
+            }.execute();
         });
 
+        // ── Hapus ──
         btnDelete.addActionListener(e -> {
-            if (selectedId < 0) { JOptionPane.showMessageDialog(this, "Pilih data dulu!"); return; }
+            if (selectedId < 0) { showInfo("Pilih data dulu!"); return; }
             int confirm = JOptionPane.showConfirmDialog(this,
                 "Hapus lapangan ini?", "Konfirmasi", JOptionPane.YES_NO_OPTION);
-            if (confirm == JOptionPane.YES_OPTION) {
-                if (controller.deleteCourt(selectedId)) {
-                    JOptionPane.showMessageDialog(this, "Lapangan berhasil dihapus!");
-                    clearForm(); loadData();
+            if (confirm != JOptionPane.YES_OPTION) return;
+
+            int id = selectedId;
+            setFormEnabled(false);
+            new SwingWorker<Boolean, Void>() {
+                @Override
+                protected Boolean doInBackground() {
+                    return controller.deleteCourt(id);
                 }
-            }
+                @Override
+                protected void done() {
+                    try {
+                        if (get()) { showInfo("Lapangan berhasil dihapus!"); clearForm(); loadData(); }
+                        else showError("Gagal menghapus lapangan!");
+                    } catch (Exception ex) {
+                        showError("Terjadi kesalahan: " + ex.getMessage());
+                    } finally {
+                        setFormEnabled(true);
+                    }
+                }
+            }.execute();
         });
 
         btnClear.addActionListener(e -> clearForm());
 
-        btnRefresh.addActionListener(e -> {
-            clearForm();
-            loadData();
-            JOptionPane.showMessageDialog(this, "Data berhasil diperbarui.",
-                "Refresh", JOptionPane.INFORMATION_MESSAGE);
-        });
+        btnRefresh.addActionListener(e -> { clearForm(); loadData(); });
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
+
     private void loadData() {
-        tableModel.setRowCount(0);
-        for (Court c : controller.getAllCourts()) {
-            tableModel.addRow(new Object[]{
-                c.getId(), c.getCourtName(), c.getType(),
-                c.getPricePerHour(), c.getStatus()
-            });
-        }
+        btnRefresh.setEnabled(false);
+        btnRefresh.setText("Memuat...");
+
+        new SwingWorker<List<Court>, Void>() {
+            @Override
+            protected List<Court> doInBackground() {
+                return controller.getAllCourts();
+            }
+            @Override
+            protected void done() {
+                try {
+                    tableModel.setRowCount(0);
+                    for (Court c : get()) {
+                        tableModel.addRow(new Object[]{
+                            c.getId(), c.getCourtName(), c.getType(),
+                            c.getPricePerHour(), c.getStatus()
+                        });
+                    }
+                } catch (Exception ex) {
+                    showError("Gagal memuat data: " + ex.getMessage());
+                } finally {
+                    btnRefresh.setEnabled(true);
+                    btnRefresh.setText("⟳ Refresh");
+                }
+            }
+        }.execute();
+    }
+
+    private void setFormEnabled(boolean enabled) {
+        txtName .setEnabled(enabled);
+        txtType .setEnabled(enabled);
+        txtPrice.setEnabled(enabled);
+        cbStatus  .setEnabled(enabled);
+        btnAdd    .setEnabled(enabled);
+        btnUpdate .setEnabled(enabled);
+        btnDelete .setEnabled(enabled);
+        btnRefresh.setEnabled(enabled);
     }
 
     private void clearForm() {
@@ -160,5 +242,13 @@ public class CourtPanel extends JPanel {
         cbStatus.setSelectedIndex(0);
         selectedId = -1;
         table.clearSelection();
+    }
+
+    private void showInfo(String msg) {
+        JOptionPane.showMessageDialog(this, msg);
+    }
+
+    private void showError(String msg) {
+        JOptionPane.showMessageDialog(this, msg, "Error", JOptionPane.ERROR_MESSAGE);
     }
 }

@@ -4,35 +4,36 @@ import dao.CourtDAO;
 import model.Court;
 import java.util.List;
 
-/**
- * Controller for Court management.
- * Mediates between CourtPanel (View) and CourtDAO (Model).
- */
 public class CourtController {
 
     private final CourtDAO dao = new CourtDAO();
 
-    /** Returns all courts from the database. */
     public List<Court> getAllCourts() {
         return dao.getAll();
     }
 
     /**
-     * Validates and adds a new court.
-     * @throws NumberFormatException if price is not a valid number (checked in view)
+     * @return  1  = berhasil
+     *          0  = gagal (DB error)
+     *         -1  = nama kosong
      */
-    public boolean addCourt(String name, String type, double price, String status) {
-        if (name == null || name.trim().isEmpty()) return false;
-        return dao.insert(new Court(0, name.trim(), type.trim(), price, status));
+    public int addCourt(String name, String type, double price, String status) {
+        if (name == null || name.trim().isEmpty()) return -1;
+        boolean ok = dao.insert(new Court(0, name.trim(), type.trim(), price, status));
+        return ok ? 1 : 0;
     }
 
-    /** Updates an existing court by ID. */
-    public boolean updateCourt(int id, String name, String type, double price, String status) {
-        if (name == null || name.trim().isEmpty()) return false;
-        return dao.update(new Court(id, name.trim(), type.trim(), price, status));
+    /**
+     * @return  1  = berhasil
+     *          0  = gagal (DB error)
+     *         -1  = nama kosong
+     */
+    public int updateCourt(int id, String name, String type, double price, String status) {
+        if (name == null || name.trim().isEmpty()) return -1;
+        boolean ok = dao.update(new Court(id, name.trim(), type.trim(), price, status));
+        return ok ? 1 : 0;
     }
 
-    /** Deletes a court by ID. */
     public boolean deleteCourt(int id) {
         return dao.delete(id);
     }
