@@ -25,7 +25,7 @@ public class ControllerLogin {
             return;
         }
 
-        // Nonaktifkan tombol agar tidak bisa diklik dua kali
+        
         view.setFormEnabled(false);
         view.setStatus("Memeriksa...");
 
@@ -39,7 +39,7 @@ public class ControllerLogin {
 
             @Override
             protected void done() {
-                // Kembali ke EDT untuk update UI
+               
                 try {
                     boolean berhasil = get();
                     if (berhasil) {

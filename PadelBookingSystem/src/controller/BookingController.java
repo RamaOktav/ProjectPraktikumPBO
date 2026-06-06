@@ -92,10 +92,9 @@ public class BookingController {
         return ok ? null : "Gagal menyimpan pemesanan ke database!";
     }
 
-    /**
-     * Update status booking.
-     * @return null jika sukses, atau pesan error jika gagal
-     */
+    
+    //Update status booking.
+    
     public String updateBookingStatus(int id, String status) {
         boolean ok = bookingDAO.update(
             new Booking(id, 0, 0, "", "", "", 0, status));
